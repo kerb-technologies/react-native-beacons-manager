@@ -38,7 +38,22 @@ import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 import org.altbeacon.beacon.service.ArmaRssiFilter;
 import org.altbeacon.beacon.service.RunningAverageRssiFilter;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.ProtocolException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -326,18 +341,43 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
 
             sendEvent(mReactContext, "regionDidEnter", createMonitoringResponse(region));
 
-            wakeUpAppIfNotRunning();
+//            wakeUpAppIfNotRunning();
+
+            sendDebug(new JSONObject() {{
+                try {
+                    put("device", "android");
+                    put("message", "EnterRegion");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }});
         }
 
         @Override
         public void didExitRegion(Region region) {
             Log.i(LOG_TAG, "regionDidEnter");
             sendEvent(mReactContext, "regionDidExit", createMonitoringResponse(region));
+            sendDebug(new JSONObject() {{
+                try {
+                    put("device", "android");
+                    put("message", "ExitRegion");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }});
         }
 
         @Override
         public void didDetermineStateForRegion(int i, Region region) {
             Log.i(LOG_TAG, "didDetermineStateForRegion");
+            sendDebug(new JSONObject() {{
+                try {
+                    put("device", "android");
+                    put("message", "DetermineState");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }});
         }
     };
 
@@ -394,9 +434,43 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, region: " + region.toString());
             sendEvent(mReactContext, "beaconsDidRange", createRangingResponse(beacons, region));
 
-            if (!beacons.isEmpty()) {
-                wakeUpAppIfNotRunning();
+//            if (!beacons.isEmpty()) {
+//                wakeUpAppIfNotRunning();
+//            }
+
+            final JSONArray beaconArray = new JSONArray();
+            for (final Beacon beacon : beacons) {
+                beaconArray.put(new JSONObject(){{
+                    try {
+                        put("uuid", beacon.getId1().toString());
+                        put("major", beacon.getId2().toInt());
+                        put("minor", beacon.getId3().toInt());
+                        put("rssi", beacon.getRssi());
+                        if (beacon.getDistance() == Double.POSITIVE_INFINITY
+                                || Double.isNaN(beacon.getDistance())
+                                || beacon.getDistance() == Double.NaN
+                                || beacon.getDistance() == Double.NEGATIVE_INFINITY) {
+                            put("distance", 999.0);
+                            put("proximity", "far");
+                        } else {
+                            put("distance", beacon.getDistance());
+                            put("proximity", getProximity(beacon.getDistance()));
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }});
             }
+
+            sendDebug(new JSONObject() {{
+                try {
+                    put("device", "android");
+                    put("message", "didRangeBeacons");
+                    put("beacons", beaconArray);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }});
         }
     };
 
@@ -565,5 +639,9 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             // already manually launched the app.
             mApplicationContext.startActivity(intent);
         }
+    }
+
+    private void sendDebug(JSONObject data) {
+        new BeaconDebugRequest().execute(data);
     }
 }
