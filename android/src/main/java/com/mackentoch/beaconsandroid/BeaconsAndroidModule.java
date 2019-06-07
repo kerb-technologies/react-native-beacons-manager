@@ -78,7 +78,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         this.mApplicationContext = reactContext.getApplicationContext();
         this.mBeaconManager = BeaconManager.getInstanceForApplication(mApplicationContext);
         // need to bind at instantiation so that service loads (to test more)
-        //mBeaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:0-3=4c000215,i:4-19,i:20-21,i:22-23,p:24-24")); // AltBeacon
+        mBeaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:0-3=4c000215,i:4-19,i:20-21,i:22-23,p:24-24")); // AltBeacon
         mBeaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24")); // IBeacon
 //        mBeaconManager.setDebug(false);
 
@@ -528,6 +528,21 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             Log.e(LOG_TAG, "stopRanging, error: ", e);
             reject.invoke(e.getMessage());
         }
+    }
+
+    @ReactMethod
+    public void setDebugApi(String debugApi) {
+        Log.e(LOG_TAG, "setDebugApi " + debugApi);
+    }
+
+    @ReactMethod
+    public void setRequestToken(String token) {
+        Log.e(LOG_TAG, "setRequestToken " + token);
+    }
+
+    @ReactMethod
+    public void setBeaconRequestApi(String requestApi) {
+        Log.e(LOG_TAG, "setBeaconRequestApi " + requestApi);
     }
 
 
