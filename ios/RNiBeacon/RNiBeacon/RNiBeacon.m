@@ -30,6 +30,7 @@ static NSString *const kEddystoneRegionID = @"EDDY_STONE_REGION_ID";
 @property NSString *notiApi;
 @property NSString *notiTitle;
 @property NSString *notiContent;
+@property NSDictionary *MyRegion;
 @property int sendPeriod;
 
 @end
@@ -53,7 +54,7 @@ RCT_EXPORT_MODULE()
         self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation;
         self.eddyStoneScanner = [[ESSBeaconScanner alloc] init];
         self.eddyStoneScanner.delegate = self;
-        
+        self.MyRegion = nil;
         self.debugApiEndpoint = @"";
         self.sendPeriod = 60;
     }
@@ -178,10 +179,10 @@ RCT_EXPORT_MODULE()
 
 -(NSString *)stringForProximity:(CLProximity)proximity {
     switch (proximity) {
-        case CLProximityUnknown:    return @"unknown";
-        case CLProximityFar:        return @"far";
-        case CLProximityNear:       return @"near";
-        case CLProximityImmediate:  return @"immediate";
+            case CLProximityUnknown:    return @"unknown";
+            case CLProximityFar:        return @"far";
+            case CLProximityNear:       return @"near";
+            case CLProximityImmediate:  return @"immediate";
         default:                    return @"";
     }
 }
@@ -223,32 +224,31 @@ RCT_EXPORT_METHOD(getMonitoredRegions:(RCTResponseSenderBlock)callback)
 
 RCT_EXPORT_METHOD(startMonitoringForRegion:(NSDictionary *) dict)
 {
-    [self.locationManager startMonitoringSignificantLocationChanges];
+    self.MyRegion = [dict copy];
     [self.locationManager startMonitoringForRegion:[self convertDictToBeaconRegion:dict]];
+    
+    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                     @"StartMonitoringForRegion", @"message",
+                     nil]];
 }
 
 RCT_EXPORT_METHOD(startRangingBeaconsInRegion:(NSDictionary *) dict)
 {
-    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
-        [_eddyStoneScanner startScanning];
-    } else {
-        [self.locationManager startRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
-    }
+    [self startRanging: dict];
 }
 
 RCT_EXPORT_METHOD(stopMonitoringForRegion:(NSDictionary *) dict)
 {
-    [self.locationManager stopMonitoringSignificantLocationChanges];
+    self.MyRegion = nil;
     [self.locationManager stopMonitoringForRegion:[self convertDictToBeaconRegion:dict]];
+    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                     @"StopMonitoringForRegion", @"message",
+                     nil]];
 }
 
 RCT_EXPORT_METHOD(stopRangingBeaconsInRegion:(NSDictionary *) dict)
 {
-    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
-        [self.eddyStoneScanner stopScanning];
-    } else {
-        [self.locationManager stopRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
-    }
+    [self stopRanging: dict];
 }
 
 RCT_EXPORT_METHOD(startUpdatingLocation)
@@ -304,19 +304,19 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 -(NSString *)nameForAuthorizationStatus:(CLAuthorizationStatus)authorizationStatus
 {
     switch (authorizationStatus) {
-        case kCLAuthorizationStatusAuthorizedAlways:
+            case kCLAuthorizationStatusAuthorizedAlways:
             return @"authorizedAlways";
             
-        case kCLAuthorizationStatusAuthorizedWhenInUse:
+            case kCLAuthorizationStatusAuthorizedWhenInUse:
             return @"authorizedWhenInUse";
             
-        case kCLAuthorizationStatusDenied:
+            case kCLAuthorizationStatusDenied:
             return @"denied";
             
-        case kCLAuthorizationStatusNotDetermined:
+            case kCLAuthorizationStatusNotDetermined:
             return @"notDetermined";
             
-        case kCLAuthorizationStatusRestricted:
+            case kCLAuthorizationStatusRestricted:
             return @"restricted";
     }
 }
@@ -350,15 +350,16 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 
 -(NSString *)stringForState:(CLRegionState)state {
     switch (state) {
-        case CLRegionStateInside:   return @"inside";
-        case CLRegionStateOutside:  return @"outside";
-        case CLRegionStateUnknown:  return @"unknown";
+            case CLRegionStateInside:   return @"inside";
+            case CLRegionStateOutside:  return @"outside";
+            case CLRegionStateUnknown:  return @"unknown";
         default:                    return @"unknown";
     }
 }
 
 - (void) locationManager:(CLLocationManager *)manager didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region
 {
+    
     NSDictionary *event = @{
                             @"state":   [self stringForState:state],
                             @"identifier":  region.identifier,
@@ -366,9 +367,21 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
     
     [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
                      @"didDetermineState", @"message",
+                     [self stringForState:state], @"state",
                      nil]];
     
     [self sendEventWithName:@"didDetermineState" body:event];
+    
+    switch (state) {
+            case CLRegionStateInside:
+            [self startRanging: self.MyRegion];
+            return;
+            case CLRegionStateOutside:
+            [self stopRanging: self.MyRegion];
+            return;
+        default:
+            return;
+    }
 }
 
 -(void) locationManager:(CLLocationManager *)manager didRangeBeacons:
@@ -425,6 +438,7 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
     [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
                      @"EnterRegion", @"message",
                      nil]];
+    
     [self sendEventWithName:@"regionDidEnter" body:event];
 }
 
@@ -508,14 +522,35 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
     return [NSString stringWithString:hexString];
 }
 
+-(void)startRanging: (NSDictionary *)dict {
+    [self.locationManager startMonitoringSignificantLocationChanges];
+    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
+        [_eddyStoneScanner startScanning];
+    } else {
+        [self.locationManager startRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+    }
+    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                     @"StartRangingForRegion", @"message",
+                     nil]];
+}
+
+-(void)stopRanging: (NSDictionary *)dict {
+    [self.locationManager stopMonitoringSignificantLocationChanges];
+    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
+        [self.eddyStoneScanner stopScanning];
+    } else {
+        [self.locationManager stopRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+    }
+    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                     @"StopRangingForRegion", @"message",
+                     nil]];
+}
+
 -(void)sendDebug:(NSDictionary *) dict {
     if(self.debugApiEndpoint && self.debugApiEndpoint.length != 0) {
         NSString *requestUrl = self.debugApiEndpoint;
-        NSDictionary *jsonData = [[NSDictionary alloc] initWithObjectsAndKeys:
-                                  @"ios", @"device",
-                                  dict[@"message"], @"message",
-                                  dict[@"beacons"], @"beacons",
-                                  nil];
+        NSMutableDictionary *jsonData = [dict mutableCopy];
+        [jsonData setObject:@"ios" forKey:@"device"];
         
         NSError* error;
         NSData* data = [NSJSONSerialization dataWithJSONObject:jsonData options:0 error:&error];
@@ -533,20 +568,24 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 }
 
 -(void)sendBeacon:(NSDictionary *) dict {
+    
+    NSDictionary *jsonData = nil;
+    
+    if(dict[@"uuid"] != nil) {
+        jsonData = [[NSDictionary alloc] initWithObjectsAndKeys:
+                    dict[@"uuid"],@"uuid",
+                    dict[@"major"],@"major",
+                    dict[@"minor"],@"minor",
+                    nil];
+    }
+    
+    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                     @"SendBeacon", @"message",
+                     jsonData, @"Beacon",
+                     nil]];
+    
     if(self.beaconApiRequest && self.beaconApiRequest.length != 0 && self.apiToken && self.apiToken.length != 0) {
-        [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
-                         @"SendBeacon", @"message",
-                         dict, @"Beacon", nil]];
         NSString *requestUrl = self.beaconApiRequest;
-        NSDictionary *jsonData = nil;
-        if(dict[@"uuid"] != nil) {
-            jsonData = [[NSDictionary alloc] initWithObjectsAndKeys:
-                        dict[@"uuid"],@"uuid",
-                        dict[@"major"],@"major",
-                        dict[@"minor"],@"minor",
-                        nil];
-        }
-        
         NSError* error;
         NSData* data = [NSJSONSerialization dataWithJSONObject:jsonData options:0 error:&error];
         NSString *dataString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];

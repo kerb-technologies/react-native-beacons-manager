@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Build;
+import android.os.RemoteException;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
@@ -61,8 +62,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     private String debugApi = null;
     private String requestToken = null;
     private String beaconRequestApi = null;
-    private Boolean isRanging = false;
-    private Boolean isMonitoring = false;
+    private Region MyRegion = null;
 
     public BeaconsAndroidModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -320,13 +320,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     public void startMonitoring(String regionId, String beaconUuid, int minor, int major, Callback resolve, Callback reject) {
         Log.d(LOG_TAG, "startMonitoring, monitoringRegionId: " + regionId + ", monitoringBeaconUuid: " + beaconUuid + ", minor: " + minor + ", major: " + major);
 
-        if(this.isMonitoring) {
-            Log.d(LOG_TAG, "Monitoring in running already");
-            return;
-        }
-
-        this.isMonitoring = true;
-
         try {
             Region region = createRegion(
                     regionId,
@@ -334,7 +327,10 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
                     String.valueOf(minor).equals("-1") ? "" : String.valueOf(minor),
                     String.valueOf(major).equals("-1") ? "" : String.valueOf(major)
             );
+
             mBeaconManager.startMonitoringBeaconsInRegion(region);
+
+            this.MyRegion = region;
 
             resolve.invoke();
         } catch (Exception e) {
@@ -358,11 +354,17 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
                     e.printStackTrace();
                 }
             }});
+
+            try {
+                mBeaconManager.startRangingBeaconsInRegion(MyRegion);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         }
 
         @Override
         public void didExitRegion(Region region) {
-            Log.i(LOG_TAG, "regionDidEnter");
+            Log.i(LOG_TAG, "didExitRegion");
             sendEvent(mReactContext, "regionDidExit", createMonitoringResponse(region));
             sendDebug(new JSONObject() {{
                 try {
@@ -372,6 +374,14 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
                     e.printStackTrace();
                 }
             }});
+
+            sendBeacon(null);
+
+            try {
+                mBeaconManager.stopRangingBeaconsInRegion(MyRegion);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         }
 
         @Override
@@ -409,9 +419,8 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         );
 
         try {
-            this.isMonitoring = false;
             mBeaconManager.stopMonitoringBeaconsInRegion(region);
-
+            this.MyRegion = null;
             resolve.invoke();
         } catch (Exception e) {
             Log.e(LOG_TAG, "stopMonitoring, error: ", e);
@@ -425,12 +434,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     @ReactMethod
     public void startRanging(String regionId, String beaconUuid, Callback resolve, Callback reject) {
         Log.d(LOG_TAG, "startRanging, rangingRegionId: " + regionId + ", rangingBeaconUuid: " + beaconUuid);
-        if(this.isRanging) {
-            Log.d(LOG_TAG, "Ranging in running already");
-            return;
-        }
-
-        this.isRanging = true;
 
         try {
             Region region = createRegion(regionId, beaconUuid);
@@ -620,8 +623,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         if (!mBeaconManager.isBound(this)) {
             return;
         }
-
-        this.isRanging = false;
 
         Region region = createRegion(regionId, beaconUuid);
         try {
