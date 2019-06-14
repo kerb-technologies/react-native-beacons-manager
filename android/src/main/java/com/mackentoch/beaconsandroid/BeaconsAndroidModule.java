@@ -6,13 +6,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.bluetooth.le.ScanFilter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Build;
-import android.provider.Settings;
 import android.support.annotation.Nullable;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 import com.facebook.react.bridge.Callback;
@@ -42,23 +41,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URL;
-import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements BeaconConsumer {
     private static final String LOG_TAG = "BeaconsAndroidModule";
@@ -69,7 +58,11 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     private Context mApplicationContext;
     private ReactApplicationContext mReactContext;
     private static boolean channelCreated = false;
-    private static boolean isActivityActivated = true;
+    private String debugApi = null;
+    private String requestToken = null;
+    private String beaconRequestApi = null;
+    private Boolean isRanging = false;
+    private Boolean isMonitoring = false;
 
     public BeaconsAndroidModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -111,6 +104,14 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             mBeaconManager.setBackgroundScanPeriod(1100);
 
             bindManager();
+        }
+
+        // Fix beacon empty when screen off
+        ScanFilter.Builder builder = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder = new ScanFilter.Builder();
+            builder.setManufacturerData(0x004c, new byte[]{});
+            ScanFilter filter = builder.build();
         }
     }
 
@@ -318,6 +319,14 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     @ReactMethod
     public void startMonitoring(String regionId, String beaconUuid, int minor, int major, Callback resolve, Callback reject) {
         Log.d(LOG_TAG, "startMonitoring, monitoringRegionId: " + regionId + ", monitoringBeaconUuid: " + beaconUuid + ", minor: " + minor + ", major: " + major);
+
+        if(this.isMonitoring) {
+            Log.d(LOG_TAG, "Monitoring in running already");
+            return;
+        }
+
+        this.isMonitoring = true;
+
         try {
             Region region = createRegion(
                     regionId,
@@ -340,8 +349,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             Log.i(LOG_TAG, "regionDidEnter");
 
             sendEvent(mReactContext, "regionDidEnter", createMonitoringResponse(region));
-
-//            wakeUpAppIfNotRunning();
 
             sendDebug(new JSONObject() {{
                 try {
@@ -402,6 +409,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         );
 
         try {
+            this.isMonitoring = false;
             mBeaconManager.stopMonitoringBeaconsInRegion(region);
 
             resolve.invoke();
@@ -417,6 +425,13 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     @ReactMethod
     public void startRanging(String regionId, String beaconUuid, Callback resolve, Callback reject) {
         Log.d(LOG_TAG, "startRanging, rangingRegionId: " + regionId + ", rangingBeaconUuid: " + beaconUuid);
+        if(this.isRanging) {
+            Log.d(LOG_TAG, "Ranging in running already");
+            return;
+        }
+
+        this.isRanging = true;
+
         try {
             Region region = createRegion(regionId, beaconUuid);
             mBeaconManager.startRangingBeaconsInRegion(region);
@@ -433,10 +448,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, beacons: " + beacons.toString());
             Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, region: " + region.toString());
             sendEvent(mReactContext, "beaconsDidRange", createRangingResponse(beacons, region));
-
-//            if (!beacons.isEmpty()) {
-//                wakeUpAppIfNotRunning();
-//            }
 
             final JSONArray beaconArray = new JSONArray();
             for (final Beacon beacon : beacons) {
@@ -462,15 +473,104 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
                 }});
             }
 
+            JSONArray sortedBeaconArray = null;
+            try {
+                sortedBeaconArray = this.sort(beaconArray, "distance", true);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            if(sortedBeaconArray != null ) {
+                Log.d(LOG_TAG, "SortedBeaconArray: " + sortedBeaconArray.toString());
+            } else {
+                Log.d(LOG_TAG, "SortedBeaconArray: []");
+            }
+
+
+            final JSONArray finalSortedBeaconArray = sortedBeaconArray;
             sendDebug(new JSONObject() {{
                 try {
                     put("device", "android");
                     put("message", "didRangeBeacons");
-                    put("beacons", beaconArray);
+                    put("beacons", finalSortedBeaconArray);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
             }});
+
+            JSONObject nearestBeacon = null;
+
+            if(finalSortedBeaconArray != null) {
+                try {
+                    nearestBeacon = (JSONObject) finalSortedBeaconArray.get(0);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            final JSONObject finalNearestBeacon = nearestBeacon;
+
+            if(finalNearestBeacon != null) {
+                sendBeacon(new JSONObject() {{
+                    try {
+                        put("uuid", finalNearestBeacon.get("uuid"));
+                        put("major", finalNearestBeacon.get("major"));
+                        put("minor", finalNearestBeacon.get("minor"));
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }});
+            } else {
+                sendBeacon(null);
+            }
+
+            sendDebug(new JSONObject() {{
+                try {
+                    put("device", "android");
+                    put("message", "SendBeacon");
+                    put("beacon", finalNearestBeacon);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }});
+        }
+
+        private JSONArray sort(JSONArray jsonArr, String sortBy, boolean sortOrder) throws JSONException {
+            JSONArray sortedJsonArray = new JSONArray();
+
+            List<JSONObject> jsonValues = new ArrayList();
+            for (int i = 0; i < jsonArr.length(); i++) {
+                jsonValues.add(jsonArr.getJSONObject(i));
+            }
+            final String KEY_NAME = sortBy;
+            final Boolean SORT_ORDER = sortOrder;
+            Collections.sort( jsonValues, new Comparator<JSONObject>() {
+
+                @Override
+                public int compare(JSONObject a, JSONObject b) {
+                    Double valA = new Double(-1);
+                    Double valB = new Double(-1);
+
+                    try {
+                        valA = (Double) a.get(KEY_NAME);
+                        valB = (Double) b.get(KEY_NAME);
+                    }
+                    catch (JSONException e) {
+                        //exception
+                    }
+                    if (SORT_ORDER) {
+                        return valA.compareTo(valB);
+                    } else {
+                        return -valA.compareTo(valB);
+                    }
+                }
+            });
+
+            for (int i = 0; i < jsonArr.length(); i++) {
+                sortedJsonArray.put(jsonValues.get(i));
+            }
+
+            return sortedJsonArray;
         }
     };
 
@@ -520,6 +620,9 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         if (!mBeaconManager.isBound(this)) {
             return;
         }
+
+        this.isRanging = false;
+
         Region region = createRegion(regionId, beaconUuid);
         try {
             mBeaconManager.stopRangingBeaconsInRegion(region);
@@ -533,16 +636,19 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     @ReactMethod
     public void setDebugApi(String debugApi) {
         Log.e(LOG_TAG, "setDebugApi " + debugApi);
+        this.debugApi = debugApi;
     }
 
     @ReactMethod
     public void setRequestToken(String token) {
         Log.e(LOG_TAG, "setRequestToken " + token);
+        this.requestToken = token;
     }
 
     @ReactMethod
     public void setBeaconRequestApi(String requestApi) {
         Log.e(LOG_TAG, "setBeaconRequestApi " + requestApi);
+        this.beaconRequestApi = requestApi;
     }
 
 
@@ -601,35 +707,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         channelCreated = true;
     }
 
-    private void createNotification(String title, String message) {
-        Class intentClass = getMainActivityClass();
-        Intent notificationIntent = new Intent(mApplicationContext, intentClass);
-        Integer requestCode = new Random().nextInt(10000);
-        PendingIntent contentIntent = PendingIntent.getActivity(mApplicationContext, requestCode, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-
-        NotificationCompat.Builder notification = new NotificationCompat.Builder(mApplicationContext, NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setAutoCancel(false)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setSound(Settings.System.DEFAULT_NOTIFICATION_URI)
-                .setContentIntent(contentIntent);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            notification.setCategory(NotificationCompat.CATEGORY_CALL);
-        }
-
-        NotificationManager notificationManager = (NotificationManager) mApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE);
-        checkOrCreateChannel(notificationManager);
-
-        Notification info = notification.build();
-        info.defaults |= Notification.DEFAULT_LIGHTS;
-
-        notificationManager.notify(requestCode, info);
-    }
-
     private Boolean isActivityRunning(Class activityClass) {
         ActivityManager activityManager = (ActivityManager) mApplicationContext.getSystemService(Context.ACTIVITY_SERVICE);
         List<ActivityManager.RunningTaskInfo> tasks = activityManager.getRunningTasks(Integer.MAX_VALUE);
@@ -642,21 +719,27 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         return false;
     }
 
-    private void wakeUpAppIfNotRunning() {
-        Class intentClass = getMainActivityClass();
-        Boolean isRunning = isActivityRunning(intentClass);
-
-        if (!isRunning) {
-            Intent intent = new Intent(mApplicationContext, intentClass);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            // Important:  make sure to add android:launchMode="singleInstance" in the manifest
-            // to keep multiple copies of this activity from getting created if the user has
-            // already manually launched the app.
-            mApplicationContext.startActivity(intent);
-        }
+    private void sendDebug(JSONObject data) {
+        final String debugApi  = this.debugApi;
+        new BeaconDebugRequest().execute(data, new JSONObject() {{
+            try {
+                put("debugApi", debugApi);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }});
     }
 
-    private void sendDebug(JSONObject data) {
-        new BeaconDebugRequest().execute(data);
+    private void sendBeacon(JSONObject data) {
+        final String beaconRequestApi  = this.beaconRequestApi;
+        final String requestToken  = this.requestToken;
+        new BeaconDebugRequest().execute(data, new JSONObject() {{
+            try {
+                put("beaconRequestApi", beaconRequestApi);
+                put("requestToken", requestToken);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }});
     }
 }

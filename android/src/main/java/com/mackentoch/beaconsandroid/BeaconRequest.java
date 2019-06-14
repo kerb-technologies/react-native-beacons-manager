@@ -8,13 +8,12 @@ import org.json.JSONObject;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
 
-public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
+public class BeaconRequest extends AsyncTask<JSONObject, Void, Void> {
     protected void onPreExecute() {
         //display progress dialog.
 
@@ -23,19 +22,22 @@ public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
     protected Void doInBackground(JSONObject... params) {
         HttpURLConnection con = null;
         JSONObject payload = params[0];
-        String debugApi = null;
+        String beaconRequestApi = null;
+        String requestToken = null;
         try {
-            debugApi = (String) params[1].get("debugApi");
+            beaconRequestApi = (String) params[1].get("beaconRequestApi");
+            requestToken = (String) params[1].get("requestToken");
         } catch (JSONException e) {
             e.printStackTrace();
         }
 
-        if(debugApi != null) {
+        if(beaconRequestApi != null && requestToken != null) {
             try {
-                URL url = new URL(debugApi);
+                URL url = new URL(beaconRequestApi);
                 con = (HttpURLConnection) url.openConnection();
                 con.setRequestMethod("POST");
                 con.setRequestProperty("Content-Type", "application/json");
+                con.setRequestProperty("Authorization", requestToken);
                 con.setDoOutput(true);
                 con.connect();
                 DataOutputStream wr = new DataOutputStream(con.getOutputStream());
@@ -43,7 +45,7 @@ public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
                 wr.flush();
                 wr.close();
                 int HttpResult = con.getResponseCode();
-                Log.d("BeaconsAndroidModule", "BeaconDebugRequest Response Code " + HttpResult);
+                Log.d("BeaconsAndroidModule", "BeaconRequest Response Code " + HttpResult);
             } catch (ProtocolException e) {
                 e.printStackTrace();
             } catch (MalformedURLException e) {
