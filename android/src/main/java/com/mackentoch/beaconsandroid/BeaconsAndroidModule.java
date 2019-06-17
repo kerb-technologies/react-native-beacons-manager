@@ -734,7 +734,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     private void sendBeacon(JSONObject data) {
         final String beaconRequestApi  = this.beaconRequestApi;
         final String requestToken  = this.requestToken;
-        new BeaconDebugRequest().execute(data, new JSONObject() {{
+        new BeaconRequest().execute(data, new JSONObject() {{
             try {
                 put("beaconRequestApi", beaconRequestApi);
                 put("requestToken", requestToken);

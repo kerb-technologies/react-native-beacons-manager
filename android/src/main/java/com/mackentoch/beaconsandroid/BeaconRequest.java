@@ -30,7 +30,7 @@ public class BeaconRequest extends AsyncTask<JSONObject, Void, Void> {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-
+        Log.d("BeaconsAndroidModule", "BeaconRequest beaconRequestApi " + beaconRequestApi + " - requestToken " + requestToken);
         if(beaconRequestApi != null && requestToken != null) {
             try {
                 URL url = new URL(beaconRequestApi);

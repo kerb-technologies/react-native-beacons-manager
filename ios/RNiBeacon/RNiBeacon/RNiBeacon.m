@@ -179,10 +179,10 @@ RCT_EXPORT_MODULE()
 
 -(NSString *)stringForProximity:(CLProximity)proximity {
     switch (proximity) {
-            case CLProximityUnknown:    return @"unknown";
-            case CLProximityFar:        return @"far";
-            case CLProximityNear:       return @"near";
-            case CLProximityImmediate:  return @"immediate";
+        case CLProximityUnknown:    return @"unknown";
+        case CLProximityFar:        return @"far";
+        case CLProximityNear:       return @"near";
+        case CLProximityImmediate:  return @"immediate";
         default:                    return @"";
     }
 }
@@ -304,19 +304,19 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 -(NSString *)nameForAuthorizationStatus:(CLAuthorizationStatus)authorizationStatus
 {
     switch (authorizationStatus) {
-            case kCLAuthorizationStatusAuthorizedAlways:
+        case kCLAuthorizationStatusAuthorizedAlways:
             return @"authorizedAlways";
             
-            case kCLAuthorizationStatusAuthorizedWhenInUse:
+        case kCLAuthorizationStatusAuthorizedWhenInUse:
             return @"authorizedWhenInUse";
             
-            case kCLAuthorizationStatusDenied:
+        case kCLAuthorizationStatusDenied:
             return @"denied";
             
-            case kCLAuthorizationStatusNotDetermined:
+        case kCLAuthorizationStatusNotDetermined:
             return @"notDetermined";
             
-            case kCLAuthorizationStatusRestricted:
+        case kCLAuthorizationStatusRestricted:
             return @"restricted";
     }
 }
@@ -350,9 +350,9 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 
 -(NSString *)stringForState:(CLRegionState)state {
     switch (state) {
-            case CLRegionStateInside:   return @"inside";
-            case CLRegionStateOutside:  return @"outside";
-            case CLRegionStateUnknown:  return @"unknown";
+        case CLRegionStateInside:   return @"inside";
+        case CLRegionStateOutside:  return @"outside";
+        case CLRegionStateUnknown:  return @"unknown";
         default:                    return @"unknown";
     }
 }
@@ -373,10 +373,10 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
     [self sendEventWithName:@"didDetermineState" body:event];
     
     switch (state) {
-            case CLRegionStateInside:
+        case CLRegionStateInside:
             [self startRanging: self.MyRegion];
             return;
-            case CLRegionStateOutside:
+        case CLRegionStateOutside:
             [self stopRanging: self.MyRegion];
             return;
         default:
@@ -523,27 +523,31 @@ RCT_EXPORT_METHOD(setBeaconSendPeriod:(int)beaconSendPeriod)
 }
 
 -(void)startRanging: (NSDictionary *)dict {
-    [self.locationManager startMonitoringSignificantLocationChanges];
-    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
-        [_eddyStoneScanner startScanning];
-    } else {
-        [self.locationManager startRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+    if(dict != nil) {
+        [self.locationManager startMonitoringSignificantLocationChanges];
+        if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
+            [_eddyStoneScanner startScanning];
+        } else {
+            [self.locationManager startRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+        }
+        [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                         @"StartRangingForRegion", @"message",
+                         nil]];
     }
-    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
-                     @"StartRangingForRegion", @"message",
-                     nil]];
 }
 
 -(void)stopRanging: (NSDictionary *)dict {
-    [self.locationManager stopMonitoringSignificantLocationChanges];
-    if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
-        [self.eddyStoneScanner stopScanning];
-    } else {
-        [self.locationManager stopRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+    if(dict != nil) {
+        [self.locationManager stopMonitoringSignificantLocationChanges];
+        if ([dict[@"identifier"] isEqualToString:kEddystoneRegionID]) {
+            [self.eddyStoneScanner stopScanning];
+        } else {
+            [self.locationManager stopRangingBeaconsInRegion:[self convertDictToBeaconRegion:dict]];
+        }
+        [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
+                         @"StopRangingForRegion", @"message",
+                         nil]];
     }
-    [self sendDebug:[[NSDictionary alloc] initWithObjectsAndKeys:
-                     @"StopRangingForRegion", @"message",
-                     nil]];
 }
 
 -(void)sendDebug:(NSDictionary *) dict {
