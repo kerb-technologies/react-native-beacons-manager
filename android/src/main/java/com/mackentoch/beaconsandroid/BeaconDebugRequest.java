@@ -39,7 +39,7 @@ public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
                 con.setDoOutput(true);
                 con.connect();
                 DataOutputStream wr = new DataOutputStream(con.getOutputStream());
-                wr.writeBytes(payload.toString());
+                wr.writeBytes(payload != null ? payload.toString() : "");
                 wr.flush();
                 wr.close();
                 int HttpResult = con.getResponseCode();

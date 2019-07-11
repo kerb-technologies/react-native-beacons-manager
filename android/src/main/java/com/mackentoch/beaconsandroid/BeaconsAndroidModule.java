@@ -263,7 +263,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         for (Region region : mBeaconManager.getMonitoredRegions()) {
             WritableMap map = new WritableNativeMap();
             map.putString("identifier", region.getUniqueId());
-            map.putString("uuid", region.getId1().toString());
+            map.putString("uuid", region.getId1() != null ? region.getId1().toString() : "");
             map.putInt("major", region.getId2() != null ? region.getId2().toInt() : 0);
             map.putInt("minor", region.getId3() != null ? region.getId3().toInt() : 0);
             array.pushMap(map);
@@ -277,7 +277,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         for (Region region : mBeaconManager.getRangedRegions()) {
             WritableMap map = new WritableNativeMap();
             map.putString("region", region.getUniqueId());
-            map.putString("uuid", region.getId1().toString());
+            map.putString("uuid", region.getId1() != null ? region.getId1().toString() : "");
             array.pushMap(map);
         }
         callback.invoke(array);
@@ -456,9 +456,9 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             for (final Beacon beacon : beacons) {
                 beaconArray.put(new JSONObject(){{
                     try {
-                        put("uuid", beacon.getId1().toString());
-                        put("major", beacon.getId2().toInt());
-                        put("minor", beacon.getId3().toInt());
+                        put("uuid", beacon.getId1() != null ? beacon.getId1().toString() : "");
+                        put("major", beacon.getId2() != null ? beacon.getId2().toInt() : 0);
+                        put("minor", beacon.getId3() != null ? beacon.getId3().toInt() : 0);
                         put("rssi", beacon.getRssi());
                         if (beacon.getDistance() == Double.POSITIVE_INFINITY
                                 || Double.isNaN(beacon.getDistance())
@@ -584,10 +584,10 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         WritableArray a = new WritableNativeArray();
         for (Beacon beacon : beacons) {
             WritableMap b = new WritableNativeMap();
-            b.putString("uuid", beacon.getId1().toString());
+            b.putString("uuid", beacon.getId1() != null ? beacon.getId1().toString() : "");
             if (beacon.getIdentifiers().size() > 2) {
-                b.putInt("major", beacon.getId2().toInt());
-                b.putInt("minor", beacon.getId3().toInt());
+                b.putInt("major", beacon.getId2() != null ? beacon.getId2().toInt() : 0);
+                b.putInt("minor", beacon.getId3() != null ? beacon.getId3().toInt() : 0);
             }
             b.putInt("rssi", beacon.getRssi());
             if (beacon.getDistance() == Double.POSITIVE_INFINITY
