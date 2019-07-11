@@ -652,6 +652,16 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         this.beaconRequestApi = requestApi;
     }
 
+    @ReactMethod
+    public void setUserId(String userId) {
+        Log.e(LOG_TAG, "setUserId " + userId);
+    }
+
+    @ReactMethod
+    public void setNotificationDelay(Number notificationDelay) {
+        Log.e(LOG_TAG, "setNotificationDelay " + notificationDelay);
+    }
+
 
     /***********************************************************************************************
      * Utils
