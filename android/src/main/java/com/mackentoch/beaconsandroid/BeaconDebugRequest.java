@@ -20,6 +20,10 @@ public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
 
     }
 
+    private static boolean stringNotEmpty(String str) {
+        return str != null && !str.trim().isEmpty();
+    }
+
     protected Void doInBackground(JSONObject... params) {
         HttpURLConnection con = null;
         JSONObject payload = params[0];
@@ -30,7 +34,7 @@ public class BeaconDebugRequest extends AsyncTask<JSONObject, Void, Void> {
             e.printStackTrace();
         }
 
-        if(debugApi != null) {
+        if(stringNotEmpty(debugApi)) {
             try {
                 URL url = new URL(debugApi);
                 con = (HttpURLConnection) url.openConnection();

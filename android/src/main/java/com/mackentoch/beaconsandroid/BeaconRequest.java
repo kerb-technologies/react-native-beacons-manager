@@ -19,6 +19,10 @@ public class BeaconRequest extends AsyncTask<JSONObject, Void, Void> {
 
     }
 
+    private static boolean stringNotEmpty(String str) {
+        return str != null && !str.trim().isEmpty();
+    }
+
     protected Void doInBackground(JSONObject... params) {
         HttpURLConnection con = null;
         JSONObject payload = params[0];
@@ -31,7 +35,7 @@ public class BeaconRequest extends AsyncTask<JSONObject, Void, Void> {
             e.printStackTrace();
         }
         Log.d("BeaconsAndroidModule", "BeaconRequest beaconRequestApi " + beaconRequestApi + " - requestToken " + requestToken);
-        if(beaconRequestApi != null && requestToken != null) {
+        if(stringNotEmpty(beaconRequestApi) && stringNotEmpty(requestToken)) {
             try {
                 URL url = new URL(beaconRequestApi);
                 con = (HttpURLConnection) url.openConnection();
