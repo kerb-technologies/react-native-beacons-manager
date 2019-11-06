@@ -64,6 +64,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     private String beaconRequestApi = null;
     private Region MyRegion = null;
     private NotificationManager mNotificationManager;
+    private boolean isForegroundServiceStarted = false;
 
     public BeaconsAndroidModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -653,9 +654,12 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
     public void startBeaconServices(final String regionId, final String beaconUuid, final int minor, final int major, final Callback resolve, final Callback reject) {
         final Notification.Builder builder = this.buildNotification();
         Log.e(LOG_TAG, "startBeaconServices ");
-        unbindManager();
-        mBeaconManager.enableForegroundServiceScanning(builder.build(), 456);
-        bindManager();
+        if (!isForegroundServiceStarted) {
+            unbindManager();
+            mBeaconManager.enableForegroundServiceScanning(builder.build(), 456);
+            bindManager();
+            isForegroundServiceStarted = true;
+        }
         // Hack: delay a bit to wait beacon service connected to prevent error:
         // The BeaconManager is not bound to the service.  Call beaconManager.bind(BeaconConsumer consumer) and wait for a callback to onBeaconServiceConnect()
         new android.os.Handler().postDelayed(
@@ -697,6 +701,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             unbindManager();
             mBeaconManager.disableForegroundServiceScanning();
             bindManager();
+            isForegroundServiceStarted = false;
             resolve.invoke();
         } catch (Exception e) {
             Log.e(LOG_TAG, "stopBeaconServices, error: ", e);
