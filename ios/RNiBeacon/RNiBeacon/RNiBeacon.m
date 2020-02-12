@@ -681,7 +681,7 @@ RCT_EXPORT_METHOD(setNotificationDelay:(int)notificationDelay)
                                   sharedInstance.notiTitle, @"title",
                                   sharedInstance.uid, @"userId",
                                   sharedInstance.notiContent, @"message",
-                                  sharedInstance.notiDelay, @"delay",
+                                  @(sharedInstance.notiDelay), @"delay",
                                   nil];
         
         NSError* error;
