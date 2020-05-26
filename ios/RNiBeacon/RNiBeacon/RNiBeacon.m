@@ -18,7 +18,7 @@
 
 static NSString *const kEddystoneRegionID = @"EDDY_STONE_REGION_ID";
 
-@interface RNiBeacon() <CLLocationManagerDelegate, ESSBeaconScannerDelegate>
+@interface RNiBeacon() <CLLocationManagerDelegate, ESSBeaconScannerDelegate, UIApplicationDelegate>
 
 @property (strong, nonatomic) CLLocationManager *locationManager;
 @property (strong, nonatomic) ESSBeaconScanner *eddyStoneScanner;
@@ -27,6 +27,9 @@ static NSString *const kEddystoneRegionID = @"EDDY_STONE_REGION_ID";
 @end
 
 @implementation RNiBeacon
+
+Boolean _inBackground = false;
+UIBackgroundTaskIdentifier _backgroundTask;
 
 RCT_EXPORT_MODULE()
 
@@ -40,7 +43,7 @@ RCT_EXPORT_MODULE()
     self.locationManager.delegate = self;
     self.locationManager.pausesLocationUpdatesAutomatically = NO;
     self.dropEmptyRanges = NO;
-      
+
     self.eddyStoneScanner = [[ESSBeaconScanner alloc] init];
     self.eddyStoneScanner.delegate = self;
   }
@@ -236,13 +239,6 @@ RCT_EXPORT_METHOD(stopRangingBeaconsInRegion:(NSDictionary *) dict)
   }
 }
 
-RCT_EXPORT_METHOD(requestStateForRegion:(NSDictionary *)dict)
-{
-  if ([self.locationManager respondsToSelector:@selector(requestStateForRegion:)]) {
-    [self.locationManager requestStateForRegion:[self convertDictToBeaconRegion:dict]];
-  }
-}
-
 RCT_EXPORT_METHOD(startUpdatingLocation)
 {
   [self.locationManager startUpdatingLocation];
@@ -358,6 +354,10 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
   NSDictionary *event = [self convertBeaconRegionToDict: region];
 
   [self sendEventWithName:@"regionDidEnter" body:event];
+
+  if (_inBackground) {
+    [self extendBackgroundRunningTime];
+  }
 }
 
 -(void)locationManager:(CLLocationManager *)manager
@@ -383,7 +383,7 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
 
 - (void)notifyAboutBeaconChanges:(NSArray *)beacons {
     NSMutableArray *beaconArray = [[NSMutableArray alloc] init];
-    
+
     for (id key in beacons) {
         ESSBeaconInfo *beacon = key;
         NSDictionary *info = [self getEddyStoneInfo:beacon];
@@ -417,12 +417,12 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
     if ([rssi floatValue] >= 0){
         return [NSNumber numberWithInt:-1];
     }
-    
+
     float ratio = [rssi floatValue] / ([txPower floatValue] - 41);
     if (ratio < 1.0) {
         return [NSNumber numberWithFloat:pow(ratio, 10)];
     }
-    
+
     float distance = (0.89976) * pow(ratio, 7.7095) + 0.111;
     return [NSNumber numberWithFloat:distance];
 }
@@ -433,14 +433,53 @@ RCT_EXPORT_METHOD(shouldDropEmptyRanges:(BOOL)drop)
     if (!dataBuffer) {
         return [NSString string];
     }
-    
+
     NSMutableString *hexString  = [NSMutableString stringWithCapacity:(data.length * 2)];
     [hexString appendString:@"0x"];
     for (int i = 0; i < EDDYSTONE_UUID_LENGTH; ++i) {
         [hexString appendString:[NSString stringWithFormat:@"%02lx", (unsigned long)dataBuffer[i]]];
     }
-    
+
     return [NSString stringWithString:hexString];
+}
+
+- (void)applicationDidEnterBackground:(UIApplication *)application
+{
+    [self extendBackgroundRunningTime];
+    _inBackground = YES;
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
+    _inBackground = NO;
+}
+
+- (void)extendBackgroundRunningTime {
+    if (_backgroundTask != UIBackgroundTaskInvalid) {
+        // if we are in here, that means the background task is already running.
+        // don't restart it.
+        return;
+    }
+    NSLog(@"Attempting to extend background running time");
+
+    __block Boolean self_terminate = YES;
+
+    _backgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithName:@"DummyTask" expirationHandler:^{
+        NSLog(@"Background task expired by iOS");
+        if (self_terminate) {
+            [[UIApplication sharedApplication] endBackgroundTask:_backgroundTask];
+            _backgroundTask = UIBackgroundTaskInvalid;
+        }
+    }];
+
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSLog(@"Background task started");
+
+        while (true) {
+            NSLog(@"background time remaining: %8.2f", [UIApplication sharedApplication].backgroundTimeRemaining);
+            [NSThread sleepForTimeInterval:1];
+        }
+    });
 }
 
 @end
