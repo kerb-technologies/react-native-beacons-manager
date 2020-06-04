@@ -334,17 +334,24 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
 
             sendEvent(mReactContext, "regionDidEnter", createMonitoringResponse(region));
 
-            sendDebug(new JSONObject() {{
-                try {
-                    put("device", "android");
-                    put("message", "EnterRegion");
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }});
+            try {
+              JSONObject event = new JSONObject() {{
+                  try {
+                      put("device", "android");
+                      put("message", "EnterRegion");
+                  } catch (JSONException e) {
+                      e.printStackTrace();
+                  }
+              }};
+
+              Log.i(LOG_TAG, event.toString(2));
+
+            } catch (JSONException e) {
+              e.printStackTrace();
+            }
 
             try {
-                mBeaconManager.startRangingBeaconsInRegion(MyRegion);
+                mBeaconManager.startRangingBeaconsInRegion(region);
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -354,19 +361,28 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         public void didExitRegion(Region region) {
             Log.i(LOG_TAG, "didExitRegion");
             sendEvent(mReactContext, "regionDidExit", createMonitoringResponse(region));
-            sendDebug(new JSONObject() {{
-                try {
-                    put("device", "android");
-                    put("message", "ExitRegion");
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }});
-
-            sendBeacon(null);
 
             try {
-                mBeaconManager.stopRangingBeaconsInRegion(MyRegion);
+              JSONObject event = new JSONObject() {{
+                try {
+                  put("device", "android");
+                  put("message", "ExitRegion");
+                } catch (JSONException e) {
+                  e.printStackTrace();
+                }
+              }};
+              Log.i(LOG_TAG, event.toString(2));
+
+            } catch (JSONException e) {
+              e.printStackTrace();
+            }
+
+//            sendBeacon(null);
+
+            try {
+              Log.i(LOG_TAG, "STOP RANGING IN REGION: " + MyRegion.getUniqueId());
+              mBeaconManager.stopRangingBeaconsInRegion(MyRegion);
+
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -375,14 +391,14 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         @Override
         public void didDetermineStateForRegion(int i, Region region) {
             Log.i(LOG_TAG, "didDetermineStateForRegion");
-            sendDebug(new JSONObject() {{
-                try {
-                    put("device", "android");
-                    put("message", "DetermineState");
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }});
+            // sendDebug(new JSONObject() {{
+            //     try {
+            //         put("device", "android");
+            //         put("message", "DetermineState");
+            //     } catch (JSONException e) {
+            //         e.printStackTrace();
+            //     }
+            // }});
         }
     };
 
@@ -438,6 +454,14 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
             Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, beacons: " + beacons.toString());
             Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, region: " + region.toString());
+            Log.d(LOG_TAG, "rangingConsumer didRangeBeaconsInRegion, size: " + beacons.size());
+
+            // TODO: We need to stop ranging if we get to zero??
+            if (beacons.size() == 0) {
+              return;
+
+            }
+
             sendEvent(mReactContext, "beaconsDidRange", createRangingResponse(beacons, region));
 
             final JSONArray beaconArray = new JSONArray();
@@ -479,19 +503,19 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
 
 
             final JSONArray finalSortedBeaconArray = sortedBeaconArray;
-            sendDebug(new JSONObject() {{
-                try {
-                    put("device", "android");
-                    put("message", "didRangeBeacons");
-                    put("beacons", finalSortedBeaconArray);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }});
+            // sendDebug(new JSONObject() {{
+            //     try {
+            //         put("device", "android");
+            //         put("message", "didRangeBeacons");
+            //         put("beacons", finalSortedBeaconArray);
+            //     } catch (JSONException e) {
+            //         e.printStackTrace();
+            //     }
+            // }});
 
             JSONObject nearestBeacon = null;
 
-            if(finalSortedBeaconArray != null) {
+            if(finalSortedBeaconArray != null && finalSortedBeaconArray.length() > 0) {
                 try {
                     nearestBeacon = (JSONObject) finalSortedBeaconArray.get(0);
                 } catch (JSONException e) {
@@ -502,28 +526,28 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
             final JSONObject finalNearestBeacon = nearestBeacon;
 
             if(finalNearestBeacon != null) {
-                sendBeacon(new JSONObject() {{
-                    try {
-                        put("uuid", finalNearestBeacon.get("uuid"));
-                        put("major", finalNearestBeacon.get("major"));
-                        put("minor", finalNearestBeacon.get("minor"));
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }});
+//                sendBeacon(new JSONObject() {{
+//                    try {
+//                        put("uuid", finalNearestBeacon.get("uuid"));
+//                        put("major", finalNearestBeacon.get("major"));
+//                        put("minor", finalNearestBeacon.get("minor"));
+//                    } catch (JSONException e) {
+//                        e.printStackTrace();
+//                    }
+//                }});
             } else {
-                sendBeacon(null);
+//                sendBeacon(null);
             }
 
-            sendDebug(new JSONObject() {{
-                try {
-                    put("device", "android");
-                    put("message", "SendBeacon");
-                    put("beacon", finalNearestBeacon);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }});
+            // sendDebug(new JSONObject() {{
+            //     try {
+            //         put("device", "android");
+            //         put("message", "SendBeacon");
+            //         put("beacon", finalNearestBeacon);
+            //     } catch (JSONException e) {
+            //         e.printStackTrace();
+            //     }
+            // }});
         }
 
         private JSONArray sort(JSONArray jsonArr, String sortBy, boolean sortOrder) throws JSONException {
@@ -673,7 +697,7 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
                     );
                     try {
                         mBeaconManager.startMonitoringBeaconsInRegion(region);
-                        mBeaconManager.startRangingBeaconsInRegion(region);
+//                        mBeaconManager.startRangingBeaconsInRegion(region);
                         MyRegion = region;
                         resolve.invoke();
                     } catch (Exception e) {
@@ -777,16 +801,6 @@ public class BeaconsAndroidModule extends ReactContextBaseJavaModule implements 
         return false;
     }
 
-    private void sendDebug(JSONObject data) {
-        final String debugApi  = this.debugApi;
-        new BeaconDebugRequest().execute(data, new JSONObject() {{
-            try {
-                put("debugApi", debugApi);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }});
-    }
 
     private void sendBeacon(JSONObject data) {
         final String beaconRequestApi  = this.beaconRequestApi;
